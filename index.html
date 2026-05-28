@@ -1,1 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TradeMind — AI Trading Journal</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0a0f;--bg2:#111118;--bg3:#1a1a25;
+    --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+    --text:#f0f0f8;--text2:#8888aa;--text3:#555570;
+    --accent:#7c6eff;--accent2:#a594ff;
+    --green:#22d27f;--red:#ff5252;--amber:#ffb547;--teal:#00d4aa;
+    --mono:'Space Mono',monospace;--sans:'DM Sans',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;}
 
+  /* ── Auth screens ── */
+  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .auth-card{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:40px;width:100%;max-width:420px;}
+  .auth-logo{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent2);margin-bottom:6px;}
+  .auth-sub{font-size:13px;color:var(--text3);margin-bottom:32px;letter-spacing:.5px;}
+  .auth-title{font-size:20px;font-weight:600;margin-bottom:24px;}
+  .auth-field{margin-bottom:16px;}
+  .auth-field label{display:block;font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;}
+  .auth-field input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 14px;border-radius:8px;outline:none;transition:border-color .15s;}
+  .auth-field input:focus{border-color:var(--accent);}
+  .auth-btn{width:100%;background:var(--accent);color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans);margin-top:8px;transition:opacity .15s;}
+  .auth-btn:hover{opacity:.85;}
+  .auth-btn:disabled{opacity:.5;cursor:not-allowed;}
+  .auth-switch{text-align:center;margin-top:20px;font-size:13px;color:var(--text2);}
+  .auth-switch a{color:var(--accent2);cursor:pointer;text-decoration:none;}
+  .auth-err{background:rgba(255,82,82,.1);border:1px solid rgba(255,82,82,.3);color:var(--red);font-size:13px;padding:10px 14px;border-radius:8px;margin-bottom:16px;display:none;}
+
+  /* ── Paywall ── */
+  .paywall-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .paywall-card{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:40px;width:100%;max-width:480px;text-align:center;}
+  .plan-badge{display:inline-block;background:rgba(124,110,255,.15);color:var(--accent2);font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:1px;text-transform:uppercase;margin-bottom:20px;}
+  .plan-price{font-family:var(--mono);font-size:48px;font-weight:700;color:var(--text);margin:12px 0 4px;}
+  .plan-price span{font-size:20px;color:var(--text2);}
+  .plan-features{list-style:none;margin:24px 0;text-align:left;}
+  .plan-features li{padding:9px 0;font-size:14px;color:var(--text2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+  .plan-features li::before{content:"✦";color:var(--accent2);font-size:11px;flex-shrink:0;}
+  .pay-btn{width:100%;background:var(--accent);color:#fff;border:none;padding:15px;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:var(--sans);margin-top:8px;transition:all .15s;letter-spacing:.3px;}
+  .pay-btn:hover{background:var(--accent2);transform:translateY(-1px);}
+  .trial-note{font-size:12px;color:var(--text3);margin-top:12px;}
+  .logout-link{font-size:12px;color:var(--text3);cursor:pointer;margin-top:16px;display:inline-block;}
+  .logout-link:hover{color:var(--text2);}
+
+  /* ── App layout ── */
+  #app{display:none;}
+  .app{display:flex;min-height:100vh;}
+  .sidebar{width:220px;background:var(--bg2);border-right:1px solid var(--border);padding:24px 0;flex-shrink:0;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;}
+  .main{flex:1;overflow:auto;}
+  .logo{padding:0 20px 24px;border-bottom:1px solid var(--border);margin-bottom:16px;}
+  .logo-mark{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent2);}
+  .logo-sub{font-size:11px;color:var(--text3);margin-top:2px;letter-spacing:1px;text-transform:uppercase;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;cursor:pointer;color:var(--text2);font-size:14px;font-weight:500;transition:all .15s;border-left:2px solid transparent;}
+  .nav-item:hover{color:var(--text);background:rgba(255,255,255,.03);}
+  .nav-item.active{color:var(--accent2);background:rgba(124,110,255,.08);border-left-color:var(--accent2);}
+  .nav-icon{font-size:15px;width:18px;text-align:center;}
+  .nav-section{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);padding:16px 20px 6px;}
+  .user-bar{margin-top:auto;padding:14px 20px;border-top:1px solid var(--border);}
+  .user-email{font-size:12px;color:var(--text3);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sidebar-btn{width:100%;background:transparent;color:var(--text3);border:1px solid var(--border);padding:7px;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--sans);transition:all .15s;}
+  .sidebar-btn:hover{color:var(--text);border-color:var(--border2);}
+
+  /* ── Pages ── */
+  .page{display:none;padding:32px;max-width:1100px;}
+  .page.active{display:block;}
+  .page-header{margin-bottom:28px;}
+  .page-title{font-family:var(--mono);font-size:22px;font-weight:700;}
+  .page-subtitle{color:var(--text2);font-size:13px;margin-top:5px;}
+
+  /* ── Stats ── */
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;}
+  .stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px;}
+  .stat-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+  .stat-value{font-family:var(--mono);font-size:24px;font-weight:700;}
+  .stat-value.green{color:var(--green);}
+  .stat-value.red{color:var(--red);}
+  .stat-value.amber{color:var(--amber);}
+  .stat-value.accent{color:var(--accent2);}
+  .stat-sub{font-size:12px;color:var(--text2);margin-top:3px;}
+
+  /* ── Form ── */
+  .form-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:26px;margin-bottom:20px;}
+  .form-title{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--accent2);margin-bottom:20px;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field.full{grid-column:1/-1;}
+  label{font-size:11px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;}
+  input,select,textarea{background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--sans);font-size:14px;padding:10px 13px;border-radius:8px;outline:none;transition:border-color .15s;}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+  select option{background:var(--bg3);}
+  textarea{resize:vertical;min-height:76px;}
+  .emotion-row{display:flex;align-items:center;gap:12px;margin-top:8px;}
+  .emotion-slider{flex:1;-webkit-appearance:none;height:4px;border-radius:2px;background:linear-gradient(to right,var(--red),var(--amber),var(--green));border:none;padding:0;}
+  .emotion-slider::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--text);cursor:pointer;border:2px solid var(--bg2);}
+  .emotion-lbl{font-family:var(--mono);font-size:12px;font-weight:700;min-width:90px;text-align:right;}
+  .submit-btn{width:100%;background:var(--accent);color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans);margin-top:20px;transition:all .15s;}
+  .submit-btn:hover{background:var(--accent2);transform:translateY(-1px);}
+  .submit-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+
+  /* ── Analysis ── */
+  .analysis-card{background:var(--bg3);border:1px solid var(--accent);border-radius:12px;padding:20px;margin-top:18px;animation:fadeIn .4s ease;}
+  .analysis-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .analysis-dot{width:8px;height:8px;border-radius:50%;background:var(--accent2);animation:pulse 1.5s infinite;}
+  .analysis-title{font-family:var(--mono);font-size:12px;color:var(--accent2);font-weight:700;}
+  .analysis-body{font-size:13px;color:var(--text);line-height:1.85;white-space:pre-wrap;}
+  .tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px;}
+  .tag{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;}
+  .tag.warn{background:rgba(255,181,71,.15);color:var(--amber);}
+  .tag.good{background:rgba(34,210,127,.12);color:var(--green);}
+  .tag.info{background:rgba(124,110,255,.12);color:var(--accent2);}
+
+  /* ── Table ── */
+  .tbl{width:100%;border-collapse:collapse;}
+  .tbl th{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);padding:9px 13px;text-align:left;border-bottom:1px solid var(--border);font-weight:500;}
+  .tbl td{padding:12px 13px;font-size:13px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:top;}
+  .tbl tr:hover td{background:rgba(255,255,255,.02);}
+  .pill{font-family:var(--mono);font-size:11px;font-weight:700;background:rgba(124,110,255,.12);color:var(--accent2);padding:3px 7px;border-radius:5px;}
+  .badge{font-size:11px;background:var(--bg3);padding:3px 7px;border-radius:5px;border:1px solid var(--border);}
+  .pos{color:var(--green);font-family:var(--mono);font-weight:700;}
+  .neg{color:var(--red);font-family:var(--mono);font-weight:700;}
+
+  /* ── Insights ── */
+  .insights-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px;}
+  .i-panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;}
+  .i-title{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:14px;}
+  .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
+  .bar-lbl{font-size:12px;color:var(--text2);min-width:100px;}
+  .bar-track{flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:3px;transition:width .6s ease;}
+  .bar-val{font-family:var(--mono);font-size:11px;color:var(--text);min-width:50px;text-align:right;}
+
+  /* ── Weekly ── */
+  .report-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:26px;}
+  .gen-btn{background:var(--bg3);color:var(--accent2);border:1px solid var(--accent);padding:10px 22px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);transition:all .15s;}
+  .gen-btn:hover{background:rgba(124,110,255,.15);}
+  .report-body{font-size:13px;color:var(--text);line-height:1.9;white-space:pre-wrap;}
+
+  /* ── Misc ── */
+  .empty{text-align:center;padding:48px 20px;color:var(--text3);}
+  .empty-icon{font-size:36px;margin-bottom:14px;}
+  .loading{display:flex;align-items:center;gap:10px;color:var(--text2);font-size:13px;padding:14px 0;}
+  .spinner{width:15px;height:15px;border:2px solid var(--border2);border-top-color:var(--accent2);border-radius:50%;animation:spin .7s linear infinite;}
+  .warn-box{background:rgba(255,181,71,.1);border:1px solid rgba(255,181,71,.3);border-radius:8px;padding:11px 15px;font-size:13px;color:var(--amber);margin-bottom:18px;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ── Auth Screen ── -->
+<div id="authScreen" class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">TradeMind</div>
+    <div class="auth-sub">AI TRADING JOURNAL</div>
+    <div id="authErr" class="auth-err"></div>
+
+    <!-- Login form -->
+    <div id="loginForm">
+      <div class="auth-title">Sign in</div>
+      <div class="auth-field"><label>Email</label><input type="email" id="loginEmail" placeholder="you@email.com"/></div>
+      <div class="auth-field"><label>Password</label><input type="password" id="loginPass" placeholder="••••••••"/></div>
+      <button class="auth-btn" id="loginBtn" onclick="doLogin()">Sign In →</button>
+      <div class="auth-switch">No account? <a onclick="toggleAuth('signup')">Create one free</a></div>
+    </div>
+
+    <!-- Signup form -->
+    <div id="signupForm" style="display:none">
+      <div class="auth-title">Create account</div>
+      <div class="auth-field"><label>Email</label><input type="email" id="signupEmail" placeholder="you@email.com"/></div>
+      <div class="auth-field"><label>Password</label><input type="password" id="signupPass" placeholder="Min 6 characters"/></div>
+      <button class="auth-btn" id="signupBtn" onclick="doSignup()">Create Account →</button>
+      <div class="auth-switch">Have an account? <a onclick="toggleAuth('login')">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Paywall Screen ── -->
+<div id="paywallScreen" class="paywall-wrap" style="display:none">
+  <div class="paywall-card">
+    <span class="plan-badge">Pro Plan</span>
+    <div style="font-size:22px;font-weight:600;margin-bottom:4px;">TradeMind Pro</div>
+    <div style="color:var(--text2);font-size:14px;">AI-powered trading journal for serious traders</div>
+    <div class="plan-price">₹499<span>/mo</span></div>
+    <ul class="plan-features">
+      <li>Unlimited trade logging</li>
+      <li>Instant AI analysis on every trade (Claude)</li>
+      <li>Pattern detection across your history</li>
+      <li>Weekly AI coaching report</li>
+      <li>Win rate, R:R, and emotion analytics</li>
+      <li>Dashboard with live stats</li>
+    </ul>
+    <button class="pay-btn" id="payBtn" onclick="startPayment()">Subscribe for ₹499/mo →</button>
+    <div class="trial-note">7-day free trial · Cancel anytime · UPI / Cards / Net Banking</div>
+    <div class="logout-link" onclick="doLogout()">← Sign out</div>
+  </div>
+</div>
+
+<!-- ── Main App ── -->
+<div id="app">
+<div class="app">
+  <nav class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">TradeMind</div>
+      <div class="logo-sub">AI Journal</div>
+    </div>
+    <div class="nav-section">Menu</div>
+    <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard',this)"><span class="nav-icon">◈</span>Dashboard</div>
+    <div class="nav-item" data-page="log" onclick="showPage('log',this)"><span class="nav-icon">✦</span>Log Trade</div>
+    <div class="nav-item" data-page="history" onclick="showPage('history',this)"><span class="nav-icon">≡</span>History</div>
+    <div class="nav-item" data-page="insights" onclick="showPage('insights',this)"><span class="nav-icon">◎</span>AI Insights</div>
+    <div class="nav-item" data-page="weekly" onclick="showPage('weekly',this)"><span class="nav-icon">◇</span>Weekly Report</div>
+    <div class="user-bar">
+      <div class="user-email" id="userEmail"></div>
+      <button class="sidebar-btn" onclick="doLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="main">
+
+    <!-- Dashboard -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div class="page-title">// dashboard</div>
+        <div class="page-subtitle" id="greetMsg">Your trading performance</div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Total Trades</div><div class="stat-value accent" id="s-total">0</div><div class="stat-sub">all time</div></div>
+        <div class="stat-card"><div class="stat-label">Win Rate</div><div class="stat-value green" id="s-wr">—</div><div class="stat-sub">wins / total</div></div>
+        <div class="stat-card"><div class="stat-label">Total P&amp;L</div><div class="stat-value" id="s-pnl">₹0</div><div class="stat-sub">realized</div></div>
+        <div class="stat-card"><div class="stat-label">Avg R:R</div><div class="stat-value amber" id="s-rr">—</div><div class="stat-sub">risk:reward</div></div>
+      </div>
+      <div class="form-card">
+        <div class="form-title">// recent trades</div>
+        <div id="dashRecent"></div>
+      </div>
+    </div>
+
+    <!-- Log Trade -->
+    <div class="page" id="page-log">
+      <div class="page-header">
+        <div class="page-title">// log trade</div>
+        <div class="page-subtitle">Fill in your trade — AI analysis in seconds</div>
+      </div>
+      <div class="form-card">
+        <div class="form-title">// trade details</div>
+        <div class="form-grid">
+          <div class="field"><label>Symbol</label><input type="text" id="f-sym" placeholder="RELIANCE, NIFTY50…"/></div>
+          <div class="field"><label>Setup Type</label>
+            <select id="f-setup"><option value="">Select setup</option><option>Breakout</option><option>Reversal</option><option>Momentum</option><option>Trend Follow</option><option>Support/Resistance</option><option>Options Strategy</option><option>Scalp</option><option>Other</option></select>
+          </div>
+          <div class="field"><label>Entry Price (₹)</label><input type="number" id="f-entry" placeholder="0.00" step="0.05"/></div>
+          <div class="field"><label>Exit Price (₹)</label><input type="number" id="f-exit" placeholder="0.00" step="0.05"/></div>
+          <div class="field"><label>Quantity / Lots</label><input type="number" id="f-qty" placeholder="1"/></div>
+          <div class="field"><label>Direction</label><select id="f-dir"><option value="Long">Long (Buy)</option><option value="Short">Short (Sell)</option></select></div>
+          <div class="field"><label>Stop Loss (₹)</label><input type="number" id="f-sl" placeholder="0.00" step="0.05"/></div>
+          <div class="field"><label>Target (₹)</label><input type="number" id="f-tgt" placeholder="0.00" step="0.05"/></div>
+          <div class="field full">
+            <label>Pre-trade emotion (1=Fearful · 5=Overconfident)</label>
+            <div class="emotion-row">
+              <span style="font-size:12px;color:var(--text3)">Fear</span>
+              <input type="range" min="1" max="5" value="3" id="f-emo" class="emotion-slider" oninput="updEmo(this.value)"/>
+              <span style="font-size:12px;color:var(--text3)">Confident</span>
+              <span class="emotion-lbl" id="eLabel">Neutral (3)</span>
+            </div>
+          </div>
+          <div class="field full"><label>Why this trade?</label><textarea id="f-reason" placeholder="What did you see? What made you pull the trigger?"></textarea></div>
+          <div class="field full"><label>Reflection</label><textarea id="f-reflect" placeholder="What happened? Did you follow the plan? What would you change?"></textarea></div>
+        </div>
+        <button class="submit-btn" id="subBtn" onclick="submitTrade()">Analyze &amp; Save Trade →</button>
+      </div>
+      <div id="aiOut"></div>
+    </div>
+
+    <!-- History -->
+    <div class="page" id="page-history">
+      <div class="page-header"><div class="page-title">// trade history</div><div class="page-subtitle">All your logged trades</div></div>
+      <div class="form-card">
+        <table class="tbl"><thead><tr><th>Date</th><th>Symbol</th><th>Setup</th><th>Dir</th><th>P&amp;L</th><th>Emotion</th><th>AI Verdict</th></tr></thead>
+        <tbody id="histBody"></tbody></table>
+        <div id="histEmpty" class="empty" style="display:none"><div class="empty-icon">◈</div><div>No trades yet.</div></div>
+      </div>
+    </div>
+
+    <!-- Insights -->
+    <div class="page" id="page-insights">
+      <div class="page-header"><div class="page-title">// ai insights</div><div class="page-subtitle">Pattern analysis across all trades</div></div>
+      <div class="insights-grid">
+        <div class="i-panel"><div class="i-title">Win rate by setup</div><div id="c-setup"></div></div>
+        <div class="i-panel"><div class="i-title">Emotion vs outcome</div><div id="c-emo"></div></div>
+        <div class="i-panel"><div class="i-title">P&amp;L by day of week</div><div id="c-dow"></div></div>
+        <div class="i-panel"><div class="i-title">P&amp;L by setup</div><div id="c-setupPnl"></div></div>
+      </div>
+    </div>
+
+    <!-- Weekly Report -->
+    <div class="page" id="page-weekly">
+      <div class="page-header"><div class="page-title">// weekly report</div><div class="page-subtitle">AI coaching review of your recent trades</div></div>
+      <div class="report-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;">
+          <div style="font-family:var(--mono);font-size:13px;color:var(--accent2)">// ai weekly review</div>
+          <button class="gen-btn" onclick="genWeekly()">Generate Report →</button>
+        </div>
+        <div id="weekOut"><div class="empty"><div class="empty-icon">◇</div><div>Click Generate — works best with 5+ trades.</div></div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG — replace these values
+// ══════════════════════════════════════════
+const SUPABASE_URL   = 'https://uvpdzcalgknzvudlqstu.supabase.co';       // e.g. https://abcxyz.supabase.co
+const SUPABASE_ANON  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2cGR6Y2FsZ2tuenZ1ZGxxc3R1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NDY2NTMsImV4cCI6MjA5NTUyMjY1M30.4nGlgcqZcEK2EF3YWI5joQSy5MOyyaP1uYDDx18kc0w';  // from Supabase Settings > API
+const RAZORPAY_KEY   = 'YOUR_RAZORPAY_KEY_ID';    // from Razorpay Dashboard
+const EDGE_FN_URL    = `${SUPABASE_URL}/functions/v1/analyze`; // Edge Function URL
+
+// ══════════════════════════════════════════
+// Init Supabase
+// ══════════════════════════════════════════
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+let currentUser = null;
+let trades = [];
+
+const emoMap = {1:'Fearful (1)',2:'Cautious (2)',3:'Neutral (3)',4:'Confident (4)',5:'Overconfident (5)'};
+const emoColor = {1:'#ff5252',2:'#ffb547',3:'#8888aa',4:'#22d27f',5:'#ff5252'};
+
+// ══════════════════════════════════════════
+// Startup — check session
+// ══════════════════════════════════════════
+window.onload = async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) await initUser(session.user);
+  else showScreen('auth');
+};
+
+sb.auth.onAuthStateChange(async (_event, session) => {
+  if (session) await initUser(session.user);
+});
+
+async function initUser(user) {
+  currentUser = user;
+  document.getElementById('userEmail').textContent = user.email;
+  // Check subscription status
+  const { data: profile } = await sb.from('profiles').select('is_active').eq('id', user.id).single();
+  if (profile?.is_active) {
+    await loadTrades();
+    showScreen('app');
+    refreshDashboard();
+  } else {
+    showScreen('paywall');
+  }
+}
+
+// ══════════════════════════════════════════
+// Screen management
+// ══════════════════════════════════════════
+function showScreen(s) {
+  document.getElementById('authScreen').style.display  = s==='auth'    ? 'flex' : 'none';
+  document.getElementById('paywallScreen').style.display = s==='paywall' ? 'flex' : 'none';
+  document.getElementById('app').style.display          = s==='app'     ? 'block': 'none';
+}
+
+function toggleAuth(mode) {
+  document.getElementById('loginForm').style.display  = mode==='login'  ? 'block' : 'none';
+  document.getElementById('signupForm').style.display = mode==='signup' ? 'block' : 'none';
+  document.getElementById('authErr').style.display = 'none';
+}
+
+// ══════════════════════════════════════════
+// Auth
+// ══════════════════════════════════════════
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  setLoading('loginBtn', true);
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  setLoading('loginBtn', false);
+  if (error) showErr(error.message);
+}
+
+async function doSignup() {
+  const email = document.getElementById('signupEmail').value.trim();
+  const pass  = document.getElementById('signupPass').value;
+  setLoading('signupBtn', true);
+  const { error } = await sb.auth.signUp({ email, password: pass });
+  setLoading('signupBtn', false);
+  if (error) showErr(error.message);
+  else showErr('✓ Check your email to confirm your account.', true);
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  currentUser = null; trades = [];
+  showScreen('auth');
+}
+
+function showErr(msg, ok=false) {
+  const el = document.getElementById('authErr');
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.background = ok ? 'rgba(34,210,127,.1)' : 'rgba(255,82,82,.1)';
+  el.style.borderColor = ok ? 'rgba(34,210,127,.3)' : 'rgba(255,82,82,.3)';
+  el.style.color = ok ? 'var(--green)' : 'var(--red)';
+}
+
+// ══════════════════════════════════════════
+// Payment — Razorpay
+// ══════════════════════════════════════════
+async function startPayment() {
+  document.getElementById('payBtn').textContent = 'Opening payment...';
+  // Create order via Supabase Edge Function
+  let orderId = 'order_demo_' + Date.now(); // Replace with real order creation
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/create-order`, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${(await sb.auth.getSession()).data.session.access_token}` },
+      body: JSON.stringify({ amount: 49900 }) // ₹499 in paise
+    });
+    const data = await res.json();
+    orderId = data.id;
+  } catch(e) { /* use demo fallback */ }
+
+  const options = {
+    key: RAZORPAY_KEY,
+    amount: 49900,
+    currency: 'INR',
+    name: 'TradeMind',
+    description: 'Pro Monthly Subscription',
+    order_id: orderId,
+    prefill: { email: currentUser.email },
+    theme: { color: '#7c6eff' },
+    handler: async (response) => {
+      // Verify payment via Edge Function, then activate user
+      await activateUser(response.razorpay_payment_id);
+    }
+  };
+  const rzp = new Razorpay(options);
+  rzp.open();
+  document.getElementById('payBtn').textContent = 'Subscribe for ₹499/mo →';
+}
+
+async function activateUser(paymentId) {
+  // Call Edge Function to verify and activate
+  await fetch(`${SUPABASE_URL}/functions/v1/activate`, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${(await sb.auth.getSession()).data.session.access_token}` },
+    body: JSON.stringify({ payment_id: paymentId, user_id: currentUser.id })
+  });
+  // For demo: directly update (in prod, only edge fn does this after verification)
+  await sb.from('profiles').upsert({ id: currentUser.id, is_active: true, payment_id: paymentId });
+  await loadTrades();
+  showScreen('app');
+  refreshDashboard();
+}
+
+// ══════════════════════════════════════════
+// Navigation
+// ══════════════════════════════════════════
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  el.classList.add('active');
+  if (name==='history') renderHistory();
+  if (name==='insights') renderInsights();
+}
+
+// ══════════════════════════════════════════
+// Trades — Supabase DB
+// ══════════════════════════════════════════
+async function loadTrades() {
+  const { data } = await sb.from('trades').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+  trades = data || [];
+}
+
+async function submitTrade() {
+  const sym    = document.getElementById('f-sym').value.trim().toUpperCase();
+  const entry  = parseFloat(document.getElementById('f-entry').value);
+  const exit   = parseFloat(document.getElementById('f-exit').value);
+  const qty    = parseFloat(document.getElementById('f-qty').value)||1;
+  const dir    = document.getElementById('f-dir').value;
+  const setup  = document.getElementById('f-setup').value;
+  const sl     = parseFloat(document.getElementById('f-sl').value)||null;
+  const tgt    = parseFloat(document.getElementById('f-tgt').value)||null;
+  const emo    = parseInt(document.getElementById('f-emo').value);
+  const reason = document.getElementById('f-reason').value.trim();
+  const reflect= document.getElementById('f-reflect').value.trim();
+
+  if (!sym||!entry||!exit) { alert('Symbol, Entry and Exit are required.'); return; }
+
+  const mult = dir==='Long'?1:-1;
+  const pnl  = mult*(exit-entry)*qty;
+  const rr   = sl&&tgt ? Math.abs((tgt-entry)/(entry-sl)).toFixed(2) : null;
+  const won  = pnl>0;
+
+  const trade = { user_id:currentUser.id, symbol:sym, setup, entry, exit, qty, direction:dir, sl, target:tgt, emotion:emo, reason, reflection:reflect, pnl, rr, won, analysis:null };
+
+  // Save to Supabase
+  const { data: saved } = await sb.from('trades').insert(trade).select().single();
+  trades.unshift(saved);
+  refreshDashboard();
+
+  const btn = document.getElementById('subBtn');
+  btn.disabled=true; btn.textContent='Analyzing...';
+  document.getElementById('aiOut').innerHTML = `<div class="loading"><div class="spinner"></div>Claude is analyzing your trade...</div>`;
+
+  try {
+    const analysis = await callAnalyze(saved);
+    await sb.from('trades').update({ analysis }).eq('id', saved.id);
+    saved.analysis = analysis;
+    renderAnalysis(analysis, saved);
+  } catch(e) {
+    document.getElementById('aiOut').innerHTML = `<div class="warn-box">Analysis failed: ${e.message}</div>`;
+  }
+
+  btn.disabled=false; btn.textContent='Analyze & Save Trade →';
+  clearForm();
+}
+
+// ══════════════════════════════════════════
+// AI — calls Supabase Edge Function
+// ══════════════════════════════════════════
+async function callAnalyze(trade) {
+  const session = (await sb.auth.getSession()).data.session;
+  const recent  = trades.slice(0,10).map(t=>`${t.symbol} ${t.setup||'?'} ${t.won?'WIN':'LOSS'} ₹${t.pnl?.toFixed(0)} Emo:${t.emotion}`).join('\n');
+
+  const res = await fetch(EDGE_FN_URL, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${session.access_token}` },
+    body: JSON.stringify({ trade, recent_trades: recent })
+  });
+  if (!res.ok) throw new Error('Edge function error '+res.status);
+  const d = await res.json();
+  return d.analysis;
+}
+
+async function genWeekly() {
+  if (!trades.length) { alert('Log some trades first.'); return; }
+  document.getElementById('weekOut').innerHTML = `<div class="loading"><div class="spinner"></div>Claude is writing your weekly review...</div>`;
+  const session = (await sb.auth.getSession()).data.session;
+  const recent  = trades.slice(0,20);
+  const summary = recent.map(t=>`${t.symbol}|${t.setup||'?'}|${t.direction}|${t.won?'WIN':'LOSS'}|₹${t.pnl?.toFixed(0)}|Emo:${t.emotion}|"${t.reason||'none'}"`).join('\n');
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/weekly-report`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${session.access_token}` },
+      body: JSON.stringify({ trades_summary: summary, trade_count: recent.length, wins: recent.filter(t=>t.won).length, total_pnl: recent.reduce((s,t)=>s+t.pnl,0) })
+    });
+    const d = await res.json();
+    document.getElementById('weekOut').innerHTML = `<div class="report-body">${esc(d.report)}</div>`;
+  } catch(e) {
+    document.getElementById('weekOut').innerHTML = `<div class="warn-box">Failed: ${e.message}</div>`;
+  }
+}
+
+// ══════════════════════════════════════════
+// Dashboard & UI
+// ══════════════════════════════════════════
+function refreshDashboard() {
+  const tot = trades.length;
+  const wins = trades.filter(t=>t.won).length;
+  const pnl  = trades.reduce((s,t)=>s+(t.pnl||0),0);
+  const rrs  = trades.filter(t=>t.rr).map(t=>parseFloat(t.rr));
+  const avgRr= rrs.length?(rrs.reduce((a,b)=>a+b,0)/rrs.length).toFixed(2):null;
+
+  document.getElementById('s-total').textContent = tot;
+  document.getElementById('s-wr').textContent = tot ? Math.round(wins/tot*100)+'%' : '—';
+  const pe = document.getElementById('s-pnl');
+  pe.textContent = '₹'+pnl.toLocaleString('en-IN',{maximumFractionDigits:0});
+  pe.className = 'stat-value '+(pnl>=0?'green':'red');
+  document.getElementById('s-rr').textContent = avgRr?'1:'+avgRr:'—';
+
+  const hour = new Date().getHours();
+  
+  document.getElementById('greetMsg').textContent = (hour<12?'Good morning':hour<17?'Good afternoon':'Good evening')+' — here\'s your performance summary';
+
+  const recent = trades.slice(0,5);
+  document.getElementById('dashRecent').innerHTML = recent.length
+    ? `<table class="tbl"><thead><tr><th>Date</th><th>Symbol</th><th>Setup</th><th>P&L</th><th>Result</th></tr></thead><tbody>
+      ${recent.map(t=>`<tr><td>${fmt(t.created_at)}</td><td><span class="pill">${t.symbol}</span></td><td><span class="badge">${t.setup||'—'}</span></td><td class="${t.pnl>=0?'pos':'neg'}">₹${t.pnl?.toFixed(0)}</td><td><span class="tag ${t.won?'good':'warn'}">${t.won?'WIN':'LOSS'}</span></td></tr>`).join('')}
+      </tbody></table>`
+    : '<div class="empty"><div class="empty-icon">◈</div><div>No trades yet. Log your first trade.</div></div>';
+}
+
+function renderHistory() {
+  const body = document.getElementById('histBody');
+  document.getElementById('histEmpty').style.display = trades.length?'none':'block';
+  body.innerHTML = trades.map(t=>{
+    const snippet = t.analysis ? (t.analysis.split('\n').find(l=>l.startsWith('VERDICT:'))||'').replace('VERDICT:','').trim()||'Analyzed' : 'Pending';
+    return `<tr>
+      <td>${fmt(t.created_at)}</td>
+      <td><span class="pill">${t.symbol}</span></td>
+      <td><span class="badge">${t.setup||'—'}</span></td>
+      <td>${t.direction}</td>
+      <td class="${t.pnl>=0?'pos':'neg'}">₹${t.pnl?.toFixed(0)}</td>
+      <td style="font-size:11px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${emoColor[t.emotion]};margin-right:5px"></span>${emoMap[t.emotion]||t.emotion}</td>
+      <td style="font-size:12px;max-width:200px;color:var(--text2)">${esc(snippet)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderInsights() {
+  renderBars('c-setup', getSetupWR(), v=>Math.round(v*100)+'%', true);
+  renderBars('c-emo', getEmoWR(), v=>Math.round(v*100)+'%', true);
+  renderBars('c-dow', getDowPnl(), v=>'₹'+v.toFixed(0), false);
+  renderBars('c-setupPnl', getSetupPnl(), v=>'₹'+v.toFixed(0), false);
+}
+
+function renderBars(id, data, fmt2, isRate) {
+  const el = document.getElementById(id);
+  if (!data.length) { el.innerHTML='<div class="empty" style="padding:16px">Not enough data</div>'; return; }
+  const mx = Math.max(...data.map(d=>Math.abs(d.val)),1);
+  el.innerHTML = data.map(d=>{
+    const pct = Math.min(100, Math.abs(d.val)/mx*100);
+    const col = isRate?(d.val>=0.5?'var(--green)':'var(--red)'):(d.val>=0?'var(--green)':'var(--red)');
+    return `<div class="bar-row"><div class="bar-lbl">${d.label}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div><div class="bar-val">${fmt2(d.val)}</div></div>`;
+  }).join('');
+}
+
+function getSetupWR() {
+  const m={};
+  trades.forEach(t=>{ const k=t.setup||'Unknown'; if(!m[k])m[k]={w:0,t:0}; m[k].t++; if(t.won)m[k].w++; });
+  return Object.entries(m).map(([k,v])=>({label:k,val:v.w/v.t})).sort((a,b)=>b.val-a.val);
+}
+function getEmoWR() {
+  const m={};
+  trades.forEach(t=>{ const k=t.emotion; if(!m[k])m[k]={w:0,t:0}; m[k].t++; if(t.won)m[k].w++; });
+  return Object.entries(m).map(([k,v])=>({label:emoMap[k]||k,val:v.w/v.t})).sort((a,b)=>a.label.localeCompare(b.label));
+}
+function getDowPnl() {
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],m={};
+  trades.forEach(t=>{ const k=days[new Date(t.created_at).getDay()]; if(!m[k])m[k]=[]; m[k].push(t.pnl||0); });
+  return Object.entries(m).map(([k,v])=>({label:k,val:v.reduce((a,b)=>a+b,0)/v.length}));
+}
+function getSetupPnl() {
+  const m={};
+  trades.forEach(t=>{ const k=t.setup||'Unknown'; if(!m[k])m[k]=0; m[k]+=t.pnl||0; });
+  return Object.entries(m).map(([k,v])=>({label:k,val:v})).sort((a,b)=>b.val-a.val);
+}
+
+function renderAnalysis(text, trade) {
+  const tags=[];
+  if(trade.won) tags.push({t:'Profitable',c:'good'}); else tags.push({t:'Loss — review',c:'warn'});
+  if(trade.emotion>=4) tags.push({t:'High emotion',c:'warn'});
+  if(trade.rr&&parseFloat(trade.rr)>=2) tags.push({t:`R:R 1:${trade.rr}`,c:'good'});
+  document.getElementById('aiOut').innerHTML=`<div class="analysis-card">
+    <div class="analysis-header"><div class="analysis-dot"></div><div class="analysis-title">// claude analysis — ${trade.symbol}</div></div>
+    <div class="analysis-body">${esc(text)}</div>
+    <div class="tags">${tags.map(t=>`<span class="tag ${t.c}">${t.t}</span>`).join('')}</div>
+  </div>`;
+}
+
+function updEmo(v) {
+  const el=document.getElementById('eLabel');
+  el.textContent=emoMap[v]; el.style.color=emoColor[v];
+}
+function clearForm() {
+  ['f-sym','f-entry','f-exit','f-qty','f-sl','f-tgt','f-reason','f-reflect'].forEach(id=>{ document.getElementById(id).value=''; });
+  document.getElementById('f-setup').value='';
+  document.getElementById('f-emo').value=3; updEmo(3);
+}
+function setLoading(id,on) {
+  const b=document.getElementById(id); b.disabled=on; b.textContent=on?'Please wait...':id==='loginBtn'?'Sign In →':'Create Account →';
+}
+function fmt(iso) { return new Date(iso).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'}); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>
